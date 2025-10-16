@@ -29,31 +29,21 @@ import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.util.CharsetUtil;
 
+import wsmc.ConfigHelper;
 import wsmc.IWebSocketServerAddress;
 import wsmc.WSMC;
 import wsmc.WebSocketConnectionInfo;
 import wsmc.WebSocketHandler;
+import wsmc.WsmcConstants;
 
 public class WebSocketClientHandler extends WebSocketHandler {
 	private final WebSocketClientHandshaker handshaker;
 	private ChannelPromise handshakeFuture;
 
-	/**
-	 * This will set your maximum allowable frame payload length.
-	 * Setting this value for big modpack.
-	 */
-	public final static String maxFramePayloadLength = System.getProperty("wsmc.maxFramePayloadLength", "65536");
-
 	public WebSocketClientHandler(URI uri, String httpHostname) {
 		super("S->C", "C->S");
 
-		int maxFramePayloadLength = 65536;
-
-		try {
-			maxFramePayloadLength = Integer.parseInt(WebSocketClientHandler.maxFramePayloadLength);
-		} catch (Exception e){
-			WSMC.debug("Unable to parse maxFramePayloadLength, value: " + WebSocketClientHandler.maxFramePayloadLength);
-		}
+		int maxFramePayloadLength = ConfigHelper.getMaxFramePayloadLength();
 
 		DefaultHttpHeaders headers = new DefaultHttpHeaders();
 		headers.set("Host", httpHostname);
@@ -65,6 +55,23 @@ public class WebSocketClientHandler extends WebSocketHandler {
 				WebSocketVersion.V13, null, true, headers, maxFramePayloadLength);
 	}
 
+	/**
+	 * Hook into the Netty pipeline to add WebSocket handlers for client connections.
+	 * <p>
+	 * This method is called during connection initialization. If the target address
+	 * is a WebSocket server (ws:// or wss://), it injects the necessary handlers:
+	 * <ul>
+	 *   <li>HTTP client codec for HTTP/WebSocket protocol</li>
+	 *   <li>HTTP aggregator for assembling HTTP messages</li>
+	 *   <li>WebSocket compression handler</li>
+	 *   <li>WebSocket client handler for handshake and frame translation</li>
+	 *   <li>SSL handler for wss:// connections with custom SNI support</li>
+	 * </ul>
+	 * For vanilla TCP connections, this method does nothing.
+	 *
+	 * @param pipeline the Netty channel pipeline to modify
+	 * @param wsInfo WebSocket server address information, or null for vanilla TCP
+	 */
 	public static void hookPipeline(ChannelPipeline pipeline, IWebSocketServerAddress wsInfo) {
 		// Do not perform WebSocket handshake for vanilla TCP Minecraft
 		if (wsInfo != null && !wsInfo.isVanilla()) {
@@ -73,7 +80,8 @@ public class WebSocketClientHandler extends WebSocketHandler {
 			WSMC.info("Connecting to WebSocket Server:\n" + connInfo.toString());
 
 			pipeline.addAfter("timeout", "WsmcHttpClient", new HttpClientCodec());
-			pipeline.addAfter("WsmcHttpClient", "WsmcHttpAggregator", new HttpObjectAggregator(8192*4));
+			pipeline.addAfter("WsmcHttpClient", "WsmcHttpAggregator",
+					new HttpObjectAggregator(WsmcConstants.HTTP_AGGREGATOR_MAX_CONTENT_LENGTH));
 			pipeline.addAfter("WsmcHttpAggregator", "WsmcCompressionHandler", WebSocketClientCompressionHandler.INSTANCE);
 			pipeline.addAfter("WsmcCompressionHandler", "WsmcWebSocketClientHandler", handler);
 
@@ -95,7 +103,8 @@ public class WebSocketClientHandler extends WebSocketHandler {
 
 					pipeline.addAfter("timeout", "WsmcSslHandler", sslHandler);
 				} catch (SSLException e) {
-					e.printStackTrace();
+					WSMC.error("Failed to initialize SSL context for WSS connection", e);
+					throw new RuntimeException("SSL initialization failed", e);
 				}
 			}
 		}
@@ -123,7 +132,7 @@ public class WebSocketClientHandler extends WebSocketHandler {
 	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
 		super.exceptionCaught(ctx, cause);
 
-		cause.printStackTrace();
+		WSMC.error("WebSocket client error occurred", cause);
 		if (!handshakeFuture.isDone()) {
 			handshakeFuture.setFailure(cause);
 		}

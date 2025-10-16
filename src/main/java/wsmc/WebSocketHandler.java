@@ -8,6 +8,16 @@ import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.buffer.ByteBuf;
 
+/**
+ * Abstract WebSocket frame handler that translates between Minecraft's ByteBuf protocol
+ * and WebSocket binary frames.
+ * <p>
+ * This handler is transparent to vanilla Minecraft networking code:
+ * <ul>
+ *   <li>Outbound: wraps ByteBuf in BinaryWebSocketFrame</li>
+ *   <li>Inbound: unwraps BinaryWebSocketFrame to ByteBuf</li>
+ * </ul>
+ */
 public abstract class WebSocketHandler extends ChannelDuplexHandler {
 	public final String outboundPrefix;
 	public final String inboundPrefix;
@@ -17,11 +27,20 @@ public abstract class WebSocketHandler extends ChannelDuplexHandler {
 		this.outboundPrefix = outboundPrefix;
 	}
 
+	/**
+	 * Dump byte array contents for debugging purposes.
+	 * Only active when {@link WSMC#dumpBytes()} returns true.
+	 * <p>
+	 * Outputs bytes in hexadecimal format, {@link WsmcConstants#DUMP_BYTES_PER_LINE}
+	 * bytes per line.
+	 *
+	 * @param byteArray the ByteBuf to dump
+	 */
 	public static void dumpByteArray(ByteBuf byteArray) {
-		if (!WSMC.dumpBytes)
+		if (!WSMC.dumpBytes())
 			return;
 
-		int maxBytesPerLine = 32;
+		int maxBytesPerLine = WsmcConstants.DUMP_BYTES_PER_LINE;
 		int totalBytes = byteArray.readableBytes();
 		byteArray.markReaderIndex();
 
@@ -34,7 +53,7 @@ public abstract class WebSocketHandler extends ChannelDuplexHandler {
 				line.append(String.format("%02X ", currentByte));
 			}
 
-			System.out.println(line.toString().trim());
+			WSMC.debug(line.toString().trim());
 		}
 		byteArray.resetReaderIndex();
 	}

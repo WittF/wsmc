@@ -104,9 +104,19 @@ public class WebSocketConnectionInfo {
 	}
 
 	/**
-	 * syntax: (wss|ws)://sni.com:host.com@ip.ip.ip.ip[:port][/path]
-	 * @param uriString
-	 * @return null if uriString is not a valid WebSocket Uri (including vanilla TCP).
+	 * Parse a WebSocket URI string into a ServerAddress with WebSocket connection info.
+	 * <p>
+	 * Supports advanced syntax for controlling SNI and HTTP hostname separately:
+	 * <pre>
+	 * ws://host.com              - Simple WebSocket connection
+	 * ws://hostname@ip           - Custom HTTP hostname, connect to IP
+	 * wss://sni@host             - SNI and hostname same, resolve from host
+	 * wss://sni:hostname@ip      - All three specified separately
+	 * </pre>
+	 * Port and path can be appended to any form above.
+	 *
+	 * @param uriString the URI string to parse (ws:// or wss://)
+	 * @return ServerAddress with WebSocket info, or null if not a valid WebSocket URI
 	 */
 	@Nullable
 	public static ServerAddress fromWsUri(String uriString) {
@@ -135,11 +145,11 @@ public class WebSocketConnectionInfo {
 			if (port < 0 || port > 65535) {
 				// Default port
 				if (scheme.equalsIgnoreCase("ws")) {
-					port = 80;
+					port = WsmcConstants.DEFAULT_WS_PORT;
 				} else if (scheme.equalsIgnoreCase("wss")) {
-					port = 443;
+					port = WsmcConstants.DEFAULT_WSS_PORT;
 				} else {
-					port = 25565;
+					port = WsmcConstants.DEFAULT_MINECRAFT_PORT;
 				}
 			}
 
@@ -195,6 +205,9 @@ public class WebSocketConnectionInfo {
 			((IWebSocketServerAddress)(Object)result).setWsConnectionInfo(connInfo);
 			return result;
 		} catch (URISyntaxException e) {
+			WSMC.debug("Invalid WebSocket URI syntax: {}", uriString);
+		} catch (IllegalArgumentException e) {
+			WSMC.debug("Invalid IDN hostname in URI: {}", uriString);
 		}
 
 		return null;
