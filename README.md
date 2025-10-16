@@ -5,10 +5,12 @@
 由于大多数 CDN 服务商（至少是免费套餐）不支持原始 TCP 代理，借助此模组，服务器所有者现在可以将服务器隐藏在 CDN 后面，让玩家通过 WebSocket 连接，从而防止 DDoS 攻击。
 
 支持 Minecraft Forge、Neoforge 和 Fabric：
-* 1.20.5, 1.20.6, 1.21, 1.21.1, 1.21.2, 1.21.3, 1.21.4
-* 1.20.2, 1.20.3, 1.20.4
-* 1.20.1
-* 1.18.2, 1.19.x, 1.20
+* **1.20.6** - 1.21.4（Forge、Neoforge、Fabric）
+* **1.20.2** - 1.20.4（所有 loader）
+* **1.20.1**（所有 loader）
+* **1.18.2** - 1.20（旧版本分支）
+
+**注意**：Minecraft 1.20.5 和 1.21.2 没有 Forge 支持，仅支持 Neoforge 和 Fabric。
 
 当前分支适用于 1.20.5 及以上版本。
 
@@ -81,39 +83,36 @@ Windows 用户需要将 `./` 和 `../` 分别替换为 `.\` 和 `..\`。
 
 代码库使用 Minecraft 官方映射表。
 
-在服务端，如果客户端通过 WebSocket 加入，可以通过原版的 `net.minecraft.network.Connection` 类访问其握手请求。
-要获取此类信息，将 Connection 实例转换为 IConnectionEx，然后调用 `IConnectionEx.getWsHandshakeRequest()`。
+在服务端，如果客户端通过 WebSocket 加入，可以访问其 WebSocket 握手请求以获取真实 IP 等信息：
 
-如果 Minecraft 服务器位于反向代理（例如 CDN）后面，这对于获取有关原始请求的信息非常有用。
-例如，标头 `X-Forwarded-For` 和 `CF-IPCountry` 分别表示客户端 IP 地址和客户端国家代码。
+```java
+import wsmc.api.IWebSocketServerConnection;
+import net.minecraft.network.Connection;
+import io.netty.handler.codec.http.HttpRequest;
 
-### 编译 Fabric 构件
-```
-git clone https://github.com/rikka0w0/wsmc.git
-cd wsmc/fabric
-./gradlew build
-```
-
-要在 Fabric 中调试，可能需要创建 `run/config/fabric_loader_dependencies.json`，内容如下：
-```
-{
-  "version": 1,
-  "overrides": {
-    "wsmc": {
-      "-depends": {
-        "minecraft": "IGNORED",
-        "fabricloader": "IGNORED"
-      }
-    }
-  }
+Connection conn = // ... 从服务器获取连接
+HttpRequest handshake = IWebSocketServerConnection.of(conn).getWsHandshakeRequest();
+if (handshake != null) {
+    String realIP = handshake.headers().get("X-Forwarded-For");
+    String country = handshake.headers().get("CF-IPCountry");
 }
 ```
 
-### 编译 Forge 构件
-```
-git clone https://github.com/rikka0w0/wsmc.git
-cd wsmc/forge
-./gradlew build
+如果 Minecraft 服务器位于反向代理（例如 CDN）后面，这对于获取客户端的真实 IP 和地理位置非常有用。
+
+### 编译项目
+```bash
+git clone https://github.com/WittF/wsmc.git
+cd wsmc
+
+# 编译 Fabric 版本
+cd fabric && ./gradlew build
+
+# 编译 Forge 版本
+cd forge && ./gradlew build
+
+# 编译 Neoforge 版本
+cd neoforge && ./gradlew build
 ```
 
 ### 指定 JRE 路径（自 1.18.1 起，Minecraft 需要 Java 17）：

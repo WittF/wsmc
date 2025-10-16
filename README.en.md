@@ -5,10 +5,12 @@ Enable Websocket support for Minecraft Java.
 Since most CDN providers(at least for their free tier) do not support raw TCP proxy, with the help of this mod, the owner can now hide the server behind a CDN and let the players connect via WebSocket, thus preventing DDoS attacks.
 
 For Minecraft Forge, Neoforge and Fabric:
-* 1.20.5, 1.20.6, 1.21, 1.21.1, 1.21.2, 1.21.3, 1.21.4
-* 1.20.2, 1.20.3, 1.20.4
-* 1.20.1
-* 1.18.2, 1.19.x, 1.20
+* **1.20.6** - 1.21.4 (Forge, Neoforge, Fabric)
+* **1.20.2** - 1.20.4 (All loaders)
+* **1.20.1** (All loaders)
+* **1.18.2** - 1.20 (Older branch)
+
+**Note**: Minecraft 1.20.5 and 1.21.2 do not have Forge support, only Neoforge and Fabric are available.
 
 This branch is for 1.20.5 and above.
 
@@ -81,39 +83,36 @@ Windows users need to replace `./` and `../` with `.\` and `..\`, respectively.
 
 The codebase uses Minecraft official mapping.
 
-On the server side, if a client joins via WebSocket, its handshake request can be accessed via the vanilla `net.minecraft.network.Connection` class.
-To obtain such information, cast a Connection instance into IConnectionEx, then calls `IConnectionEx.getWsHandshakeRequest()`.
+On the server side, if a client joins via WebSocket, you can access the WebSocket handshake request to retrieve real IP and other information:
 
-This is useful for obtaining information about the original request if the Minecraft server is behind a reverse proxy (e.g. a CDN).
-For example, header `X-Forwarded-For` and `CF-IPCountry` indicate the client IP address and the client country code, respectively.
+```java
+import wsmc.api.IWebSocketServerConnection;
+import net.minecraft.network.Connection;
+import io.netty.handler.codec.http.HttpRequest;
 
-### Compile Fabric artifact
-```
-git clone https://github.com/rikka0w0/wsmc.git
-cd wsmc/fabric
-./gradlew build
-```
-
-To debug in Fabric, one may need to create `run/config/fabric_loader_dependencies.json` with the following content:
-```
-{
-  "version": 1,
-  "overrides": {
-    "wsmc": {
-      "-depends": {
-        "minecraft": "IGNORED",
-        "fabricloader": "IGNORED"
-      }
-    }
-  }
+Connection conn = // ... get connection from server
+HttpRequest handshake = IWebSocketServerConnection.of(conn).getWsHandshakeRequest();
+if (handshake != null) {
+    String realIP = handshake.headers().get("X-Forwarded-For");
+    String country = handshake.headers().get("CF-IPCountry");
 }
 ```
 
-### Compile Forge artifact
-```
-git clone https://github.com/rikka0w0/wsmc.git
-cd wsmc/forge
-./gradlew build
+This is useful for obtaining the client's real IP address and geolocation when the Minecraft server is behind a reverse proxy (e.g. a CDN).
+
+### Compile the Project
+```bash
+git clone https://github.com/WittF/wsmc.git
+cd wsmc
+
+# Compile Fabric version
+cd fabric && ./gradlew build
+
+# Compile Forge version
+cd forge && ./gradlew build
+
+# Compile Neoforge version
+cd neoforge && ./gradlew build
 ```
 
 ### To specify JRE path (Since 1.18.1, Minecraft requires Java 17):
