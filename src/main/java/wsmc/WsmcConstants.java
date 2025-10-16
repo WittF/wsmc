@@ -71,4 +71,9 @@ public final class WsmcConstants {
 	 * System property key for maximum frame payload length.
 	 */
 	public static final String PROP_MAX_FRAME_PAYLOAD_LENGTH = "wsmc.maxFramePayloadLength";
+
+	/**
+	 * System property key for enabling PROXY Protocol support (HAProxy/nginx).
+	 */
+	public static final String PROP_ENABLE_PROXY_PROTOCOL = "wsmc.enableProxyProtocol";
 }

@@ -68,6 +68,122 @@ The configuration of this mod is passed in the "system properties". You can use 
 | wsmc.debug                 | boolean  | Show debug logs.                                                                                                                                                                             | Server Client | false   | true     |
 | wsmc.dumpBytes             | boolean  | Dump raw WebSocket binary frames. Work only if `wsmc.debug` is set to `true`.                                                                                                                | Server Client | false   | true     |
 | wsmc.maxFramePayloadLength | integer  | Maximum allowable frame payload length. Setting this value to your modpack's requirement else Netty will throw error "Max frame length of x has been exceeded".                              | Server Client | 65536   | 65536    |
+| wsmc.enableProxyProtocol   | boolean  | Enable HAProxy PROXY Protocol v1/v2 support. Used to get real client IP from load balancers like HAProxy or nginx.                                                                              | Server        | false   | true     |
+
+## Advanced Proxy Features
+
+WSMC provides powerful proxy information parsing capabilities, supporting multiple proxy protocols and HTTP header standards.
+
+### Supported Proxy Protocols
+
+1. **HTTP Proxy Headers** (automatically enabled)
+   - `X-Real-IP` (highest priority)
+   - `CF-Connecting-IP` (Cloudflare)
+   - `True-Client-IP` (Akamai/Cloudflare Enterprise)
+   - `X-Forwarded-For` (standard proxy chain)
+   - `Forwarded` (RFC 7239)
+   - Geographic information: `CF-IPCountry`, `CF-Region`, `CF-City`
+
+2. **PROXY Protocol v1/v2** (requires configuration)
+   - HAProxy PROXY Protocol v1
+   - HAProxy PROXY Protocol v2
+   - Works with both TCP and WebSocket connections
+
+### API Usage Example
+
+Server-side plugins can access parsed proxy information via the `IWebSocketServerConnection` API:
+
+```java
+import wsmc.api.IWebSocketServerConnection;
+import wsmc.proxy.ProxyInfo;
+import net.minecraft.network.Connection;
+import net.minecraft.server.MinecraftServer;
+
+MinecraftServer server = ...;
+
+// Go through all established connections
+for (Connection conn: server.getConnection().getConnections()) {
+    ProxyInfo proxyInfo = IWebSocketServerConnection.of(conn).getProxyInfo();
+
+    if (proxyInfo != null && proxyInfo.isBehindProxy()) {
+        // Get client's real IP
+        String clientRealIP = proxyInfo.getClientIp();
+
+        // Get proxy chain (all proxies from client to server)
+        List<String> proxyChain = proxyInfo.getProxyChain();
+
+        // Get geographic information (if available)
+        ProxyInfo.GeoInfo geoInfo = proxyInfo.getGeoInfo();
+        if (geoInfo != null) {
+            String country = geoInfo.getCountryCode();  // e.g., "US"
+            String region = geoInfo.getRegionCode();    // e.g., "CA"
+            String city = geoInfo.getCityName();        // e.g., "San Francisco"
+        }
+
+        // Get proxy metadata
+        ProxyInfo.ProxyMetadata metadata = proxyInfo.getMetadata();
+        if (metadata != null) {
+            String protocol = metadata.getProtocol();   // e.g., "https"
+            String host = metadata.getHost();           // original hostname
+            Integer port = metadata.getPort();          // original port
+        }
+
+        // Get proxy information source
+        ProxyInfo.ProxySource source = proxyInfo.getSource();
+        // Possible values: HTTP_HEADERS, PROXY_PROTOCOL_V1, PROXY_PROTOCOL_V2
+    }
+}
+```
+
+### Configuration Examples
+
+#### Enable PROXY Protocol (for HAProxy/nginx)
+
+Add to server startup parameters:
+```
+-Dwsmc.enableProxyProtocol=true
+```
+
+#### HAProxy Configuration Example
+
+```haproxy
+frontend minecraft
+    bind *:25565
+    mode tcp
+    default_backend minecraft_servers
+
+backend minecraft_servers
+    mode tcp
+    server mc1 127.0.0.1:25566 send-proxy-v2
+```
+
+#### nginx Configuration Example (requires stream module)
+
+```nginx
+stream {
+    upstream minecraft {
+        server 127.0.0.1:25566;
+    }
+
+    server {
+        listen 25565;
+        proxy_pass minecraft;
+        proxy_protocol on;
+    }
+}
+```
+
+### Header Parsing Priority
+
+When multiple proxy headers are present, WSMC parses the client IP in the following priority:
+
+1. `X-Real-IP`
+2. `CF-Connecting-IP` (Cloudflare)
+3. `True-Client-IP` (Akamai/Cloudflare Enterprise)
+4. `X-Forwarded-For` (takes the first IP)
+5. `Forwarded` (RFC 7239)
+
+**Note**: PROXY Protocol has higher priority than HTTP headers. If both are enabled, information from PROXY Protocol will be used first.
 
 ## Dependencies
 ### Forge Version

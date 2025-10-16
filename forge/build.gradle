@@ -135,6 +135,17 @@ dependencies {
     	jarJar.pin(it, project.netty_version)
     	exclude(group: 'io.netty')
     }
+
+    // Netty's HAProxy PROXY Protocol support
+    minecraftLibrary(group: 'io.netty', name: 'netty-codec-haproxy', version: project.netty_version) {
+    	exclude(group: 'io.netty')
+    }
+
+    // Pack io.netty:netty-codec-haproxy in the mod jar
+    jarJar(group: 'io.netty', name: 'netty-codec-haproxy', version: "[${project.netty_version_min}, ${project.netty_version_max})") {
+    	jarJar.pin(it, project.netty_version)
+    	exclude(group: 'io.netty')
+    }
 }
 
 mixin {

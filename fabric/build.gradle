@@ -27,6 +27,16 @@ dependencies {
 
 	// Netty's http and websocket support
 	include(modImplementation(group: 'io.netty', name: 'netty-codec-http', version: project.netty_version))
+
+	// Netty's HAProxy PROXY Protocol support
+	// Exclude Netty core modules to avoid duplication (Minecraft already includes them)
+	include(modImplementation(group: 'io.netty', name: 'netty-codec-haproxy', version: project.netty_version) {
+		exclude group: 'io.netty', module: 'netty-codec'
+		exclude group: 'io.netty', module: 'netty-transport'
+		exclude group: 'io.netty', module: 'netty-common'
+		exclude group: 'io.netty', module: 'netty-buffer'
+		exclude group: 'io.netty', module: 'netty-handler'
+	})
 }
 
 sourceCompatibility = JavaVersion.VERSION_21

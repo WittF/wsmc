@@ -68,6 +68,122 @@ wss://sni.com:host.com@ip.ip.ip.ip
 | wsmc.debug                   | boolean  | 显示调试日志。                                                                                                   | Server Client | false   | true     |
 | wsmc.dumpBytes               | boolean  | 转储原始 WebSocket 二进制帧。仅在 `wsmc.debug` 设置为 `true` 时有效。                                              | Server Client | false   | true     |
 | wsmc.maxFramePayloadLength   | integer  | 最大允许的帧负载长度。将此值设置为你的模组包的要求，否则 Netty 将抛出错误"已超过最大帧长度 x"。                           | Server Client | 65536   | 65536    |
+| wsmc.enableProxyProtocol     | boolean  | 启用 HAProxy PROXY Protocol v1/v2 支持。用于从负载均衡器（如 HAProxy、nginx）获取真实客户端 IP。                      | Server        | false   | true     |
+
+## 高级代理特性
+
+WSMC 提供了强大的代理信息解析功能，支持多种代理协议和 HTTP 头部标准。
+
+### 支持的代理协议
+
+1. **HTTP 代理头部**（自动启用）
+   - `X-Real-IP`（最高优先级）
+   - `CF-Connecting-IP`（Cloudflare）
+   - `True-Client-IP`（Akamai/Cloudflare Enterprise）
+   - `X-Forwarded-For`（标准代理链）
+   - `Forwarded`（RFC 7239）
+   - 地理位置信息：`CF-IPCountry`、`CF-Region`、`CF-City`
+
+2. **PROXY Protocol v1/v2**（需要配置启用）
+   - HAProxy PROXY Protocol v1
+   - HAProxy PROXY Protocol v2
+   - 支持 TCP 和 WebSocket 连接
+
+### API 使用示例
+
+服务器端插件可以通过 `IWebSocketServerConnection` API 访问解析后的代理信息：
+
+```java
+import wsmc.api.IWebSocketServerConnection;
+import wsmc.proxy.ProxyInfo;
+import net.minecraft.network.Connection;
+import net.minecraft.server.MinecraftServer;
+
+MinecraftServer server = ...;
+
+// 遍历所有已建立的连接
+for (Connection conn: server.getConnection().getConnections()) {
+    ProxyInfo proxyInfo = IWebSocketServerConnection.of(conn).getProxyInfo();
+
+    if (proxyInfo != null && proxyInfo.isBehindProxy()) {
+        // 获取客户端真实 IP
+        String clientRealIP = proxyInfo.getClientIp();
+
+        // 获取代理链（从客户端到服务器的所有代理）
+        List<String> proxyChain = proxyInfo.getProxyChain();
+
+        // 获取地理位置信息（如果可用）
+        ProxyInfo.GeoInfo geoInfo = proxyInfo.getGeoInfo();
+        if (geoInfo != null) {
+            String country = geoInfo.getCountryCode();  // 例如 "US"
+            String region = geoInfo.getRegionCode();    // 例如 "CA"
+            String city = geoInfo.getCityName();        // 例如 "San Francisco"
+        }
+
+        // 获取代理元数据
+        ProxyInfo.ProxyMetadata metadata = proxyInfo.getMetadata();
+        if (metadata != null) {
+            String protocol = metadata.getProtocol();   // 例如 "https"
+            String host = metadata.getHost();           // 原始主机名
+            Integer port = metadata.getPort();          // 原始端口
+        }
+
+        // 获取代理信息来源
+        ProxyInfo.ProxySource source = proxyInfo.getSource();
+        // 可能的值：HTTP_HEADERS, PROXY_PROTOCOL_V1, PROXY_PROTOCOL_V2
+    }
+}
+```
+
+### 配置示例
+
+#### 启用 PROXY Protocol（用于 HAProxy/nginx）
+
+在服务器启动参数中添加：
+```
+-Dwsmc.enableProxyProtocol=true
+```
+
+#### HAProxy 配置示例
+
+```haproxy
+frontend minecraft
+    bind *:25565
+    mode tcp
+    default_backend minecraft_servers
+
+backend minecraft_servers
+    mode tcp
+    server mc1 127.0.0.1:25566 send-proxy-v2
+```
+
+#### nginx 配置示例（需要 stream 模块）
+
+```nginx
+stream {
+    upstream minecraft {
+        server 127.0.0.1:25566;
+    }
+
+    server {
+        listen 25565;
+        proxy_pass minecraft;
+        proxy_protocol on;
+    }
+}
+```
+
+### 头部解析优先级
+
+当同时存在多个代理头部时，WSMC 按以下优先级解析客户端 IP：
+
+1. `X-Real-IP`
+2. `CF-Connecting-IP`（Cloudflare）
+3. `True-Client-IP`（Akamai/Cloudflare Enterprise）
+4. `X-Forwarded-For`（取第一个 IP）
+5. `Forwarded`（RFC 7239）
+
+**注意**：PROXY Protocol 的优先级高于 HTTP 头部。如果同时启用，PROXY Protocol 提供的信息将优先使用。
 
 ## 依赖项
 ### Forge 版本

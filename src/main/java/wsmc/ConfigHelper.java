@@ -68,4 +68,12 @@ public final class ConfigHelper {
 	public static String getWsmcEndpoint() {
 		return getString(WsmcConstants.PROP_WSMC_ENDPOINT, null);
 	}
+
+	/**
+	 * Check if PROXY Protocol support is enabled.
+	 * @return true if PROXY Protocol support is enabled
+	 */
+	public static boolean isProxyProtocolEnabled() {
+		return getBoolean(WsmcConstants.PROP_ENABLE_PROXY_PROTOCOL, false);
+	}
 }

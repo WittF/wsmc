@@ -13,6 +13,7 @@ import io.netty.handler.codec.http.HttpRequest;
 import net.minecraft.network.Connection;
 import wsmc.IConnectionEx;
 import wsmc.IWebSocketServerAddress;
+import wsmc.proxy.ProxyInfo;
 
 @Debug(export = true)
 @Mixin(Connection.class)
@@ -22,6 +23,9 @@ public class MixinConnection implements IConnectionEx {
 
 	@Unique
 	private HttpRequest wsHandshakeRequest = null;
+
+	@Unique
+	private volatile ProxyInfo proxyInfo = null;
 
 	/*
 	 * Prior to the invocation of connectToServer(), call {@link wsmc.ArgHolder.connectToServerArg.push}
@@ -53,5 +57,15 @@ public class MixinConnection implements IConnectionEx {
 	@Override
 	public void setWsHandshakeRequest(HttpRequest wsHandshakeRequest) {
 		this.wsHandshakeRequest = wsHandshakeRequest;
+	}
+
+	@Override
+	public ProxyInfo getProxyInfo() {
+		return this.proxyInfo;
+	}
+
+	@Override
+	public void setProxyInfo(ProxyInfo proxyInfo) {
+		this.proxyInfo = proxyInfo;
 	}
 }
