@@ -87,8 +87,15 @@ public class WebSocketClientHandler extends WebSocketHandler {
 
 			if ("wss".equalsIgnoreCase(connInfo.uri.getScheme())) {
 				try {
-					SslContext sslCtx = SslContextBuilder.forClient()
-							.trustManager(InsecureTrustManagerFactory.INSTANCE).build();
+					// WARNING: Only use InsecureTrustManagerFactory in debug mode for testing
+					// In production, this bypasses SSL certificate validation completely
+					SslContextBuilder sslBuilder = SslContextBuilder.forClient();
+					if (WSMC.debug()) {
+						WSMC.warn("WARNING: SSL certificate validation is DISABLED (debug mode)");
+						sslBuilder.trustManager(InsecureTrustManagerFactory.INSTANCE);
+					}
+					// In production mode, use system default trust manager (validates certificates)
+					SslContext sslCtx = sslBuilder.build();
 
 					// SSL Parameters to set SNI TLS Extension
 					SSLParameters sslParameters = new SSLParameters();

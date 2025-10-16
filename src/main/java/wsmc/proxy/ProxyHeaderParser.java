@@ -24,10 +24,10 @@ import wsmc.WSMC;
  * </ol>
  */
 public class ProxyHeaderParser {
-	// RFC 7239 Forwarded header pattern
-	private static final Pattern FORWARDED_FOR_PATTERN = Pattern.compile("for=\\\"?([^\\s,;\\\"]+)");
-	private static final Pattern FORWARDED_PROTO_PATTERN = Pattern.compile("proto=([^\\s,;]+)");
-	private static final Pattern FORWARDED_HOST_PATTERN = Pattern.compile("host=\\\"?([^\\s,;\\\"]+)");
+	// RFC 7239 Forwarded header pattern (case-insensitive per RFC 7239)
+	private static final Pattern FORWARDED_FOR_PATTERN = Pattern.compile("for=\\\"?([^\\s,;\\\"]+)", Pattern.CASE_INSENSITIVE);
+	private static final Pattern FORWARDED_PROTO_PATTERN = Pattern.compile("proto=([^\\s,;]+)", Pattern.CASE_INSENSITIVE);
+	private static final Pattern FORWARDED_HOST_PATTERN = Pattern.compile("host=\\\"?([^\\s,;\\\"]+)", Pattern.CASE_INSENSITIVE);
 
 	/**
 	 * Parse proxy information from HTTP headers
@@ -39,60 +39,86 @@ public class ProxyHeaderParser {
 		ProxyInfo.Builder builder = ProxyInfo.builder();
 		builder.source(ProxyInfo.ProxySource.HTTP_HEADERS);
 
-		// Try X-Real-IP first (highest priority)
-		String clientIp = headers.get("X-Real-IP");
-		if (clientIp != null && !clientIp.trim().isEmpty()) {
-			clientIp = cleanIp(clientIp);
-			builder.clientIp(clientIp);
-			builder.addProxyIp(clientIp);
-			WSMC.debug("Proxy: X-Real-IP = {}", clientIp);
+		String clientIp = null;
+
+		// Try X-Real-IP first (highest priority for client IP)
+		String xRealIp = headers.get("X-Real-IP");
+		if (xRealIp != null && !xRealIp.trim().isEmpty()) {
+			clientIp = cleanIp(xRealIp);
+			if (!clientIp.isEmpty()) {
+				WSMC.debug("Proxy: X-Real-IP = {}", clientIp);
+			} else {
+				clientIp = null; // cleanIp returned empty, invalid value
+			}
 		}
 
 		// Try CF-Connecting-IP (Cloudflare)
 		if (clientIp == null) {
-			clientIp = headers.get("CF-Connecting-IP");
-			if (clientIp != null && !clientIp.trim().isEmpty()) {
-				clientIp = cleanIp(clientIp);
-				builder.clientIp(clientIp);
-				builder.addProxyIp(clientIp);
-				WSMC.debug("Proxy: CF-Connecting-IP = {}", clientIp);
+			String cfIp = headers.get("CF-Connecting-IP");
+			if (cfIp != null && !cfIp.trim().isEmpty()) {
+				clientIp = cleanIp(cfIp);
+				if (!clientIp.isEmpty()) {
+					WSMC.debug("Proxy: CF-Connecting-IP = {}", clientIp);
+				} else {
+					clientIp = null;
+				}
 			}
 		}
 
 		// Try True-Client-IP (Akamai/Cloudflare Enterprise)
 		if (clientIp == null) {
-			clientIp = headers.get("True-Client-IP");
-			if (clientIp != null && !clientIp.trim().isEmpty()) {
-				clientIp = cleanIp(clientIp);
-				builder.clientIp(clientIp);
-				builder.addProxyIp(clientIp);
-				WSMC.debug("Proxy: True-Client-IP = {}", clientIp);
-			}
-		}
-
-		// Parse X-Forwarded-For (comma-separated chain)
-		if (clientIp == null) {
-			String xForwardedFor = headers.get("X-Forwarded-For");
-			if (xForwardedFor != null && !xForwardedFor.trim().isEmpty()) {
-				List<String> chain = parseXForwardedFor(xForwardedFor);
-				if (!chain.isEmpty()) {
-					builder.clientIp(chain.get(0)); // First IP is the client
-					builder.proxyChain(chain);
-					WSMC.debug("Proxy: X-Forwarded-For chain = {}", chain);
+			String trueClientIp = headers.get("True-Client-IP");
+			if (trueClientIp != null && !trueClientIp.trim().isEmpty()) {
+				clientIp = cleanIp(trueClientIp);
+				if (!clientIp.isEmpty()) {
+					WSMC.debug("Proxy: True-Client-IP = {}", clientIp);
+				} else {
+					clientIp = null;
 				}
 			}
 		}
 
-		// Parse RFC 7239 Forwarded header
+		// Parse X-Forwarded-For (always parse to get full chain)
+		String xForwardedFor = headers.get("X-Forwarded-For");
+		if (xForwardedFor != null && !xForwardedFor.trim().isEmpty()) {
+			List<String> chain = parseXForwardedFor(xForwardedFor);
+			if (!chain.isEmpty()) {
+				// If we don't have a clientIp from high-priority headers, use XFF's first IP
+				if (clientIp == null) {
+					clientIp = chain.get(0);
+					WSMC.debug("Proxy: X-Forwarded-For chain = {}", chain);
+				} else {
+					// We have clientIp from high-priority header, but still use XFF chain
+					WSMC.debug("Proxy: Using X-Real-IP/CF-IP for client, X-Forwarded-For chain = {}", chain);
+				}
+				builder.proxyChain(chain);
+			}
+		}
+
+		// Parse RFC 7239 Forwarded header (only as fallback if we still don't have clientIp)
 		if (clientIp == null) {
 			String forwarded = headers.get("Forwarded");
 			if (forwarded != null && !forwarded.trim().isEmpty()) {
 				String forValue = parseForwarded(forwarded, FORWARDED_FOR_PATTERN);
 				if (forValue != null) {
-					builder.clientIp(forValue);
-					builder.addProxyIp(forValue);
-					WSMC.debug("Proxy: Forwarded for = {}", forValue);
+					// Clean the extracted value (handle brackets, ports, etc.)
+					clientIp = cleanIp(forValue);
+					if (!clientIp.isEmpty()) {
+						builder.addProxyIp(clientIp);
+						WSMC.debug("Proxy: Forwarded for = {}", clientIp);
+					} else {
+						clientIp = null; // Invalid value after cleaning
+					}
 				}
+			}
+		}
+
+		// Set the final clientIp
+		if (clientIp != null && !clientIp.isEmpty()) {
+			builder.clientIp(clientIp);
+			// If we have clientIp but no chain yet, add it to the chain
+			if (builder.isProxyChainEmpty()) {
+				builder.addProxyIp(clientIp);
 			}
 		}
 

@@ -223,6 +223,14 @@ public class ProxyInfo {
 			return this;
 		}
 
+		/**
+		 * Check if the proxy chain is empty
+		 * @return true if no proxy IPs have been added
+		 */
+		public boolean isProxyChainEmpty() {
+			return this.proxyChain.isEmpty();
+		}
+
 		public ProxyInfo build() {
 			return new ProxyInfo(this);
 		}
