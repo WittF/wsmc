@@ -61,13 +61,16 @@ public class MixinServerConnectionListener {
 		if (pipeline.get(preferredHandler) != null) {
 			// Preferred handler exists, add after it
 			pipeline.addAfter(preferredHandler, "WsmcHttpGetSniffer", sniffer);
+		} else if (ConfigHelper.isProxyProtocolEnabled()) {
+			// PROXY Protocol enabled but handler not found - this is a configuration error
+			throw new IllegalStateException("PROXY Protocol is enabled but WsmcProxyProtocolHandler not found in pipeline. " +
+					"This indicates a pipeline initialization order issue.");
 		} else if (pipeline.get("timeout") != null) {
 			// Fallback to timeout handler if preferred handler doesn't exist
-			WSMC.debug("Handler '{}' not found in pipeline, falling back to 'timeout'", preferredHandler);
 			pipeline.addAfter("timeout", "WsmcHttpGetSniffer", sniffer);
 		} else {
 			// Last resort: add at the beginning of the pipeline
-			WSMC.warn("Neither '{}' nor 'timeout' found in pipeline, adding HttpGetSniffer at first position", preferredHandler);
+			WSMC.warn("'timeout' handler not found in pipeline, adding HttpGetSniffer at first position");
 			pipeline.addFirst("WsmcHttpGetSniffer", sniffer);
 		}
 	}

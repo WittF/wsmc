@@ -17,6 +17,7 @@ import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.codec.http.websocketx.WebSocketServerHandshaker;
 import io.netty.handler.codec.http.websocketx.WebSocketServerHandshakerFactory;
 import io.netty.util.CharsetUtil;
+import io.netty.util.ReferenceCountUtil;
 
 /**
  * HTTP server handler that processes WebSocket upgrade requests.
@@ -114,6 +115,7 @@ public class HttpServerHandler extends ChannelInboundHandlerAdapter {
 			WSMC.debug("EMPTY_LAST_CONTENT");
 		} else {
 			WSMC.debug("HttpServerHandler got unknown incoming request: " + msg.getClass().getName());
+			ReferenceCountUtil.release(msg);
 		}
 	}
 }

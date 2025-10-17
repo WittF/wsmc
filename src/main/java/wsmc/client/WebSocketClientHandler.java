@@ -178,6 +178,10 @@ public class WebSocketClientHandler extends WebSocketHandler {
 			handshakeFuture.addListener((future) -> {
 				if (handshakeFuture.isSuccess()) {
 					ctx.write(frame, promise);
+				} else {
+					// Handshake failed: release frame and notify promise
+					frame.release();
+					promise.setFailure(handshakeFuture.cause());
 				}
 			});
 		}

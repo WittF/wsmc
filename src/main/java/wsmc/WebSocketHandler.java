@@ -7,6 +7,7 @@ import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.buffer.ByteBuf;
+import io.netty.util.ReferenceCountUtil;
 
 /**
  * Abstract WebSocket frame handler that translates between Minecraft's ByteBuf protocol
@@ -89,13 +90,23 @@ public abstract class WebSocketHandler extends ChannelDuplexHandler {
 					dumpByteArray(content);
 				}
 
-				ctx.fireChannelRead(content);
+				// Retain content before passing to next handler (content and frame share ref count)
+				try {
+					ctx.fireChannelRead(content.retain());
+				} finally {
+					ReferenceCountUtil.release(msg);
+				}
 			} else if (msg instanceof CloseWebSocketFrame) {
 				WSMC.debug("CloseWebSocketFrame (" + ((CloseWebSocketFrame) msg).statusCode()
 							+ ") received : " + ((CloseWebSocketFrame) msg).reasonText());
+				ReferenceCountUtil.release(msg);
 			} else {
 				WSMC.debug("Unsupported WebSocketFrame: " + msg.getClass().getName());
+				ReferenceCountUtil.release(msg);
 			}
+		} else {
+			// Not a WebSocketFrame, pass through to next handler
+			ctx.fireChannelRead(msg);
 		}
 	}
 

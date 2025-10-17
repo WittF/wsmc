@@ -46,7 +46,7 @@ public class HttpGetSniffer extends ByteToMessageDecoder {
 	 */
 	@Override
 	protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
-		if (in.readableBytes() > WsmcConstants.HTTP_METHOD_DETECTION_BYTES) {
+		if (in.readableBytes() >= WsmcConstants.HTTP_METHOD_DETECTION_BYTES) {
 			byte[] byteBuffer = new byte[WsmcConstants.HTTP_METHOD_DETECTION_BYTES];
 			in.markReaderIndex();
 			in.readBytes(byteBuffer, 0, WsmcConstants.HTTP_METHOD_DETECTION_BYTES);
