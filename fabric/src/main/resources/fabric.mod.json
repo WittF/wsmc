@@ -17,6 +17,9 @@
   "icon": "wsmc_logo.png",
   "environment": "*",
   "entrypoints": {
+    "main": [
+      "wsmc.fabric.FabricEntry"
+    ]
   },
   "mixins": [
     "wsmc.mixins.json"

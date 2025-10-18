@@ -66,7 +66,7 @@ public abstract class WebSocketHandler extends ChannelDuplexHandler {
 		if (msg instanceof ByteBuf) {
 			ByteBuf byteBuf = (ByteBuf) msg;
 
-			if (WSMC.debug()) {
+			if (WSMC.debug() && WSMC.dumpBytes()) {
 				WSMC.debug(this.outboundPrefix + " (" +byteBuf.readableBytes() + "):");
 				dumpByteArray(byteBuf);
 			}
@@ -85,7 +85,7 @@ public abstract class WebSocketHandler extends ChannelDuplexHandler {
 			if (msg instanceof BinaryWebSocketFrame) {
 				ByteBuf content = ((WebSocketFrame) msg).content();
 
-				if (WSMC.debug()) {
+				if (WSMC.debug() && WSMC.dumpBytes()) {
 					WSMC.debug(this.inboundPrefix + " (" + content.readableBytes() + "):");
 					dumpByteArray(content);
 				}
