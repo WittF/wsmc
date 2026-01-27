@@ -15,14 +15,9 @@ public class ForgeEntry {
 			throw new RuntimeException("Duplicated Class Instantiation: wsmc.forge.ForgeEntry");
 	}
 
-	@Mod.EventBusSubscriber(modid = WSMC.MODID, bus = Mod.EventBusSubscriber.Bus.MOD)
-	public final static class ModEventBusHandler {
-
-	}
-
-	@Mod.EventBusSubscriber(modid = WSMC.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
+	@Mod.EventBusSubscriber(modid = WSMC.MODID, bus = Mod.EventBusSubscriber.Bus.GAME)
 	public final static class ForgeEventBusHandler {
-		@net.minecraftforge.eventbus.api.SubscribeEvent
+		@net.minecraftforge.eventbus.api.listener.SubscribeEvent
 		public static void onRegisterCommands(net.minecraftforge.event.RegisterCommandsEvent event) {
 			wsmc.commands.WsmcCommand.register(event.getDispatcher());
 		}

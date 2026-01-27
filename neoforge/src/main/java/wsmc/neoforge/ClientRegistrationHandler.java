@@ -7,7 +7,7 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 
 import wsmc.WSMC;
 
-@EventBusSubscriber(value = Dist.CLIENT, modid = WSMC.MODID, bus = EventBusSubscriber.Bus.MOD)
+@EventBusSubscriber(value = Dist.CLIENT, modid = WSMC.MODID)
 public class ClientRegistrationHandler {
 	@SubscribeEvent
 	public static void onClientSetup(final FMLClientSetupEvent event) {
