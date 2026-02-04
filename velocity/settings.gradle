@@ -1,0 +1,9 @@
+pluginManagement {
+    repositories {
+        maven {
+            name = 'PaperMC'
+            url = 'https://repo.papermc.io/repository/maven-public/'
+        }
+        gradlePluginPortal()
+    }
+}

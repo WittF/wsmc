@@ -1,0 +1,116 @@
+plugins {
+    id 'java'
+    id 'com.gradleup.shadow' version '9.0.0-beta4'
+}
+
+// Load common properties
+Properties mergedProperties = new Properties()
+mergedProperties.load(new FileInputStream("$project.rootDir/../common.properties"))
+// Loader-specific gradle.properties takes priority
+mergedProperties.load(new FileInputStream("$project.rootDir/gradle.properties"))
+mergedProperties.each { prop -> project.ext.set(prop.key, prop.value) }
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'PaperMC'
+        url = 'https://repo.papermc.io/repository/maven-public/'
+    }
+}
+
+dependencies {
+    // Velocity API
+    compileOnly "com.velocitypowered:velocity-api:${project.velocity_api_version}"
+    annotationProcessor "com.velocitypowered:velocity-api:${project.velocity_api_version}"
+
+    // Netty WebSocket support (Velocity includes Netty, but we need codec-http)
+    implementation "io.netty:netty-codec-http:${project.netty_version}"
+
+    // Netty's HAProxy PROXY Protocol support
+    implementation("io.netty:netty-codec-haproxy:${project.netty_version}") {
+        exclude group: 'io.netty', module: 'netty-codec'
+        exclude group: 'io.netty', module: 'netty-transport'
+        exclude group: 'io.netty', module: 'netty-common'
+        exclude group: 'io.netty', module: 'netty-buffer'
+        exclude group: 'io.netty', module: 'netty-handler'
+    }
+}
+
+// Configure source folders - include shared core code but exclude Minecraft-specific code
+sourceSets {
+    main {
+        java {
+            srcDir '../src/main/java'
+            // Exclude Minecraft-specific code
+            exclude 'wsmc/mixin/**'
+            exclude 'wsmc/IConnectionEx.java'
+            exclude 'wsmc/IWebSocketServerAddress.java'
+            exclude 'wsmc/WebSocketConnectionInfo.java'
+            exclude 'wsmc/ArgHolder.java'
+            exclude 'wsmc/api/IWebSocketServerConnection.java'
+            exclude 'wsmc/commands/**'
+            exclude 'wsmc/fabric/**'
+            exclude 'wsmc/forge/**'
+            exclude 'wsmc/neoforge/**'
+            // Exclude client-side code (not needed for Velocity proxy)
+            exclude 'wsmc/client/**'
+            // Exclude Minecraft-specific proxy handler (we have our own)
+            exclude 'wsmc/proxy/ProxyProtocolHandler.java'
+            // Exclude unit test that depends on Minecraft
+            exclude 'wsmc/UnitTest.java'
+        }
+        resources {
+            srcDir 'src/main/resources'
+            // Don't include shared resources (Minecraft-specific)
+        }
+    }
+}
+
+// Handle duplicate resources
+processResources {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+base {
+    archivesName = project.archives_base_name
+}
+version = project.mod_version
+group = project.dev_group
+
+// Ensure UTF-8 encoding
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    it.options.release = 17  // Velocity requires Java 17+
+}
+
+java {
+    withSourcesJar()
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+// Shadow JAR configuration to include dependencies
+shadowJar {
+    archiveClassifier.set('velocity')
+
+    // Relocate Netty HTTP codec to avoid conflicts
+    relocate 'io.netty.handler.codec.http', 'wsmc.shaded.netty.handler.codec.http'
+    relocate 'io.netty.handler.codec.haproxy', 'wsmc.shaded.netty.handler.codec.haproxy'
+
+    // Minimize JAR size
+    minimize()
+}
+
+// Make build depend on shadowJar
+build.dependsOn shadowJar
+
+jar {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes(
+            'Implementation-Title': project.name,
+            'Implementation-Version': project.version,
+            'Implementation-Timestamp': new Date().toString()
+        )
+    }
+}
