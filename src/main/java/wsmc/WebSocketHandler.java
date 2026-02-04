@@ -5,6 +5,8 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.PingWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.PongWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.buffer.ByteBuf;
 import io.netty.util.ReferenceCountUtil;
@@ -99,6 +101,15 @@ public abstract class WebSocketHandler extends ChannelDuplexHandler {
 			} else if (msg instanceof CloseWebSocketFrame) {
 				WSMC.debug("CloseWebSocketFrame (" + ((CloseWebSocketFrame) msg).statusCode()
 							+ ") received : " + ((CloseWebSocketFrame) msg).reasonText());
+				ReferenceCountUtil.release(msg);
+			} else if (msg instanceof PingWebSocketFrame) {
+				// Respond to Ping with Pong to keep connection alive
+				ByteBuf content = ((PingWebSocketFrame) msg).content();
+				ctx.writeAndFlush(new PongWebSocketFrame(content.retain()));
+				ReferenceCountUtil.release(msg);
+			} else if (msg instanceof PongWebSocketFrame) {
+				// Pong received (heartbeat acknowledgment)
+				WSMC.debug("PongWebSocketFrame received");
 				ReferenceCountUtil.release(msg);
 			} else {
 				WSMC.debug("Unsupported WebSocketFrame: " + msg.getClass().getName());
